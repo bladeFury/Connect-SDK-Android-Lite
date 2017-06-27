@@ -3,8 +3,8 @@ buildscript {
         jcenter()
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:1.2.3'
-        classpath 'org.robolectric:robolectric-gradle-plugin:1.1.0'
+        classpath 'com.android.tools.build:gradle:2.2.0'
+//        classpath 'org.robolectric:robolectric-gradle-plugin:1.3.0'
     }
 }
 
@@ -15,7 +15,7 @@ allprojects {
 }
 
 apply plugin: 'com.android.library'
-apply plugin: 'org.robolectric'
+//apply plugin: 'org.robolectric'
 apply plugin: 'jacoco'
 
 
@@ -98,8 +98,6 @@ dependencies {
     compile files('core/libs/java-websocket-patch.jar')
     compile files('core/libs/javax.jmdns_3.4.1-patch2.jar')
 
-    compile 'com.android.support:support-v4:22.2.1'
-    compile 'com.android.support:appcompat-v7:22.2.1'
 
     testCompile 'org.apache.maven:maven-ant-tasks:2.1.3'
     testCompile 'junit:junit:4.12'
