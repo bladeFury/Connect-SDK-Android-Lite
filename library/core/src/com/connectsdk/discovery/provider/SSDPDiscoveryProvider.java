@@ -174,7 +174,7 @@ public class SSDPDiscoveryProvider implements DiscoveryProvider {
         }
 
         if (ssdpClient != null) {
-            ssdpClient.close();
+//            ssdpClient.close(); :TODO zhangge here should change to a thread other than UI thread
             ssdpClient = null;
         }
     }
