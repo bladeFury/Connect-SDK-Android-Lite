@@ -32,6 +32,7 @@ public class HttpMessage {
     public final static String CONTENT_TYPE_HEADER = "Content-Type";
     public final static String CONTENT_TYPE_TEXT_XML = "text/xml; charset=utf-8";
     public final static String CONTENT_TYPE_APPLICATION_PLIST = "application/x-apple-binary-plist";
+    public final static String CONTENT_TYPE_TEXT = "text/parameters";
     public final static String UDAP_USER_AGENT = "UDAP/2.0";
     public final static String LG_ELECTRONICS = "LG Electronics";
     public final static String USER_AGENT = "User-Agent";

@@ -23,6 +23,7 @@ package com.connectsdk.service;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.util.Log;
+import android.util.StringBuilderPrinter;
 
 import com.connectsdk.core.ImageInfo;
 import com.connectsdk.core.MediaInfo;
@@ -469,9 +470,11 @@ public class AirPlayService extends DeviceService implements MediaPlayer, MediaC
         String uri = getRequestURL("play");
         String payload = null;
 
-        PListBuilder builder = new PListBuilder();
-        builder.putString("Content-Location", url);
-        builder.putReal("Start-Position", 0);
+//        PListBuilder builder = new PListBuilder();
+//        builder.putString("Content-Location", url);
+//        builder.putReal("Start-Position", 0);
+        StringBuilder builder = new StringBuilder();
+        builder.append("Content-Location: ").append(url).append("\r\n").append("Start-Position: 0.000000").append("\r\n");
 
         payload = builder.toString();
 
@@ -543,7 +546,7 @@ public class AirPlayService extends DeviceService implements MediaPlayer, MediaC
                             || serviceCommand.getHttpMethod().equalsIgnoreCase(ServiceCommand.TYPE_PUT)) {
                         if (payload != null) {
                             if (payload instanceof String) {
-                                connection.setHeader(HttpMessage.CONTENT_TYPE_HEADER, HttpMessage.CONTENT_TYPE_APPLICATION_PLIST);
+                                connection.setHeader(HttpMessage.CONTENT_TYPE_HEADER, HttpMessage.CONTENT_TYPE_TEXT);
                                 connection.setPayload(payload.toString());
                             } else if (payload instanceof byte[]) {
                                 connection.setPayload((byte[])payload);
@@ -709,9 +712,11 @@ public class AirPlayService extends DeviceService implements MediaPlayer, MediaC
 
             @Override
             public void onError(ServiceCommandError error) {
-                if (listener != null) {
-                    listener.onConnectionFailure(AirPlayService.this, error);
-                }
+                connected = true;
+                reportConnected(true);
+//                if (listener != null) {
+//                    listener.onConnectionFailure(AirPlayService.this, error);
+//                }
             }
         });
     }

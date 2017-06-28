@@ -6,6 +6,7 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.AdapterView;
+import android.widget.Toast;
 
 import com.connectsdk.core.MediaInfo;
 import com.connectsdk.device.ConnectableDevice;
@@ -18,7 +19,11 @@ import com.connectsdk.service.command.ServiceCommandError;
 
 import java.util.List;
 
+import eu.airaudio.airplay.AirPlayAuthExample;
+
 public class MainActivity extends AppCompatActivity {
+
+    private ConnectableDevice mDevice;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -37,26 +42,11 @@ public class MainActivity extends AppCompatActivity {
                         device.addListener(new ConnectableDeviceListener() {
                             @Override
                             public void onDeviceReady(ConnectableDevice device) {
-                                String mediaURL = "http://www.connectsdk.com/files/8913/9657/0225/test_video.mp4"; // credit: Blender Foundation/CC By 3.0
-                                String iconURL = "http://www.connectsdk.com/files/2013/9656/8845/test_image_icon.jpg"; // credit: sintel-durian.deviantart.com
-                                String title = "Sintel Trailer";
-                                String description = "Blender Open Movie Project";
-                                String mimeType = "video/mp4";
-                                MediaInfo mediaInfo = new MediaInfo.Builder(mediaURL, mimeType)
-                                        .setTitle(title)
-                                        .setDescription(description)
-                                        .setIcon(iconURL)
-                                        .build();
-                                device.getMediaPlayer().playMedia(mediaInfo, false, new MediaPlayer.LaunchListener() {
-                                    @Override
-                                    public void onSuccess(MediaPlayer.MediaLaunchObject object) {
-                                    }
-
-                                    @Override
-                                    public void onError(ServiceCommandError error) {
-
-                                    }
-                                });
+                                if (mDevice != null && mDevice.isConnected()) {
+                                    mDevice.disconnect();
+                                }
+                                mDevice = device;
+                                Toast.makeText(MainActivity.this, "connected", Toast.LENGTH_SHORT).show();
                             }
 
                             @Override
@@ -85,12 +75,55 @@ public class MainActivity extends AppCompatActivity {
                 dialog.show();
             }
         });
+
+        findViewById(R.id.cast).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (mDevice != null && mDevice.isConnected()) {
+                    cast(mDevice);
+                }
+            }
+        });
+        findViewById(R.id.pair).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            AirPlayAuthExample.main();
+                        } catch (Exception ignore) {
+                            ignore.printStackTrace();
+                        }
+                    }
+                }).start();
+            }
+        });
         Log.v("zhangge", "end of mainactivity");
 
     }
 
-    @Override
-    protected void onResume() {
-        super.onResume();
+    private static void cast (ConnectableDevice device) {
+        String mediaURL = "http://www.connectsdk.com/files/8913/9657/0225/test_video.mp4"; // credit: Blender Foundation/CC By 3.0
+        String iconURL = "http://www.connectsdk.com/files/2013/9656/8845/test_image_icon.jpg"; // credit: sintel-durian.deviantart.com
+        String title = "Sintel Trailer";
+        String description = "Blender Open Movie Project";
+        String mimeType = "video/mp4";
+        MediaInfo mediaInfo = new MediaInfo.Builder(mediaURL, mimeType)
+                .setTitle(title)
+                .setDescription(description)
+                .setIcon(iconURL)
+                .build();
+        device.getMediaPlayer().playMedia(mediaInfo, false, new MediaPlayer.LaunchListener() {
+            @Override
+            public void onSuccess(MediaPlayer.MediaLaunchObject object) {
+                Log.v("zhangge", "success");
+            }
+
+            @Override
+            public void onError(ServiceCommandError error) {
+                Log.v("zhangge", error.toString());
+            }
+        });
     }
 }
