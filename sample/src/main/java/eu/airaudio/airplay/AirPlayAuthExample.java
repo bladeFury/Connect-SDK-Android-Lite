@@ -19,24 +19,24 @@ public class AirPlayAuthExample {
     public static final String IP = "192.168.1.184";
     public static final int PORT = 7000;
 
-    public static void main() throws Exception {
-
-        System.out.println("Used AuthKey: " + STORED_AUTH_TOKEN);
+    public static void main(boolean pair) throws Exception {
         AirPlayAuth airPlayAuth = new AirPlayAuth(new InetSocketAddress(IP, PORT), STORED_AUTH_TOKEN);
-        SocketAddress socket;
-        try {
-            socket = airPlayAuth.authenticate();
-        } catch (Exception e) {
-            System.out.println("Authentication failed - start pairing..");
+        SocketAddress socket = airPlayAuth.getaddress();
+        if (pair) {
+            try {
+                socket = airPlayAuth.authenticate();
+            } catch (Exception e) {
+                System.out.println("Authentication failed - start pairing..");
 
-            airPlayAuth.startPairing();
+                airPlayAuth.startPairing();
 
-            System.out.println("Enter PIN:");
-            String pin = "";
+                System.out.println("Enter PIN:");
+                String pin = "";
 
-            airPlayAuth.doPairing(pin);
+                airPlayAuth.doPairing(pin);
 
-            socket = airPlayAuth.authenticate();
+                socket = airPlayAuth.authenticate();
+            }
         }
 
 

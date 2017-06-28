@@ -364,16 +364,12 @@ public class DiscoveryManager implements ConnectableDeviceListener, DiscoveryPro
      */
     @SuppressWarnings("unchecked")
     public void registerDefaultDeviceTypes() {
-        final HashMap<String, String> devicesList = DefaultPlatform.getDeviceServiceMap();
+        final HashMap<Class, Class> devicesList = DefaultPlatform.getDeviceServiceMap();
 
-        for (HashMap.Entry<String, String> entry : devicesList.entrySet()) {
-            String key = entry.getKey();
-            String value = entry.getValue();
-            try { 
-                registerDeviceService((Class<DeviceService>) Class.forName(key), (Class<DiscoveryProvider>)Class.forName(value));
-            } catch (ClassNotFoundException e) {
-                e.printStackTrace();
-            }
+        for (HashMap.Entry<Class, Class> entry : devicesList.entrySet()) {
+            Class key = entry.getKey();
+            Class value = entry.getValue();
+            registerDeviceService(key, value);
         }
     }
 

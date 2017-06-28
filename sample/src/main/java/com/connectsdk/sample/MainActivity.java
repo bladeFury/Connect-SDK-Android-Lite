@@ -91,7 +91,7 @@ public class MainActivity extends AppCompatActivity {
                     @Override
                     public void run() {
                         try {
-                            AirPlayAuthExample.main();
+                            AirPlayAuthExample.main(true);
                         } catch (Exception ignore) {
                             ignore.printStackTrace();
                         }
@@ -99,6 +99,23 @@ public class MainActivity extends AppCompatActivity {
                 }).start();
             }
         });
+
+        findViewById(R.id.air_cast).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            AirPlayAuthExample.main(false);
+                        } catch (Exception ignore) {
+                            ignore.printStackTrace();
+                        }
+                    }
+                }).start();
+            }
+        });
+
         Log.v("zhangge", "end of mainactivity");
 
     }

@@ -33,8 +33,6 @@ import java.util.Random;
  */
 public class AirPlayAuth {
 
-    private static final int SOCKET_TIMEOUT = 60 * 1000;
-
     private final InetSocketAddress address;
     private final String clientId;
     private final EdDSAPrivateKey authKey;
@@ -78,14 +76,14 @@ public class AirPlayAuth {
      * <p>
      * The AppleTV will display its PIN-dialog afterwards.
      *
-     * @throws IOException
+     * @throws IOException IOException
      */
     public void startPairing() throws IOException {
         SocketAddress socket = getaddress();
         AuthUtils.postData(socket, "/pair-pin-start", null, null);
     }
 
-    private SocketAddress getaddress() throws IOException {
+    public SocketAddress getaddress() throws IOException {
         return address;
     }
 
@@ -180,7 +178,9 @@ public class AirPlayAuth {
 
         int lengthB;
         int lengthA = lengthB = aesIV.length - 1;
-        for (; lengthB >= 0 && 256 == ++aesIV[lengthA]; lengthA = lengthB += -1) ;
+        while (lengthB >= 0 && 256 == ++aesIV[lengthA]) {
+            lengthA = lengthB += -1;
+        }
 
         Cipher aesGcm128Encrypt = Cipher.getInstance("AES/GCM/NoPadding");
         SecretKeySpec secretKey = new SecretKeySpec(aesKey, "AES");
