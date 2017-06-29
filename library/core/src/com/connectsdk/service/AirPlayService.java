@@ -22,8 +22,8 @@ package com.connectsdk.service;
 
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.text.TextUtils;
 import android.util.Log;
-import android.util.StringBuilderPrinter;
 
 import com.connectsdk.core.ImageInfo;
 import com.connectsdk.core.MediaInfo;
@@ -32,8 +32,9 @@ import com.connectsdk.discovery.DiscoveryFilter;
 import com.connectsdk.etc.helper.DeviceServiceReachability;
 import com.connectsdk.etc.helper.HttpConnection;
 import com.connectsdk.etc.helper.HttpMessage;
-import com.connectsdk.service.airplay.PListBuilder;
 import com.connectsdk.service.airplay.PListParser;
+import com.connectsdk.service.airplay.auth.AirPlayAuth;
+import com.connectsdk.service.airplay.auth.HttpException;
 import com.connectsdk.service.capability.CapabilityMethods;
 import com.connectsdk.service.capability.MediaControl;
 import com.connectsdk.service.capability.MediaPlayer;
@@ -46,7 +47,6 @@ import com.connectsdk.service.config.ServiceDescription;
 import com.connectsdk.service.sessions.LaunchSession;
 import com.connectsdk.service.sessions.LaunchSession.LaunchSessionType;
 
-import org.apache.http.protocol.HTTP;
 import org.json.JSONObject;
 
 import java.io.ByteArrayOutputStream;
@@ -68,6 +68,7 @@ import java.util.TimerTask;
 import java.util.UUID;
 
 public class AirPlayService extends DeviceService implements MediaPlayer, MediaControl {
+    private static final String STORED_AUTH_TOKEN = "EYJJ0ROBJJAWA95G@302e020100300506032b657004220420376bf9475355580b654f31ca1a35d437a1a08c6f1aefee0e53631266749ae5e6";
     public static final String X_APPLE_SESSION_ID = "X-Apple-Session-ID";
     public static final String ID = "AirPlay";
     private static final long KEEP_ALIVE_PERIOD = 15000;
@@ -81,6 +82,9 @@ public class AirPlayService extends DeviceService implements MediaPlayer, MediaC
     ServiceCommand pendingCommand = null;
     String authenticate = null;
     String password = null;
+
+    private AirPlayAuth mAirPlayAuth;
+    private boolean mIsTVOS102Later = false;
 
     @Override
     public CapabilityPriorityLevel getPriorityLevel(Class<? extends CapabilityMethods> clazz) {
@@ -324,6 +328,14 @@ public class AirPlayService extends DeviceService implements MediaPlayer, MediaC
         request.send();
     }
 
+    private void getServerInfo(ResponseListener<Object> listener) {
+        String uri = getRequestURL("server-info");
+
+        ServiceCommand<ResponseListener<Object>> request = new ServiceCommand<ResponseListener<Object>>(this, uri, null, listener);
+        request.setHttpMethod(ServiceCommand.TYPE_POST);
+        request.send();
+    }
+
     @Override
     public ServiceSubscription<PlayStateListener> subscribePlayState(
             PlayStateListener listener) {
@@ -535,7 +547,7 @@ public class AirPlayService extends DeviceService implements MediaPlayer, MediaC
                     sb.append(serviceCommand.getTarget());
 
                     HttpConnection connection = HttpConnection.newInstance(URI.create(sb.toString()));
-                    connection.setHeader(HTTP.USER_AGENT, "ConnectSDK MediaControl/1.0");
+                    connection.setHeader("User-Agent", "AirPlay/320.20");
                     connection.setHeader(X_APPLE_SESSION_ID, mSessionId);
                     if (password != null) {
                         String authorization = getAuthenticate(serviceCommand.getHttpMethod(), serviceCommand.getTarget(), authenticate);
@@ -575,11 +587,23 @@ public class AirPlayService extends DeviceService implements MediaPlayer, MediaC
                                 }
                             }
                         });
+                    } else if (code == HttpURLConnection.HTTP_FORBIDDEN) {
+                        // new version airplay
+                        // pairing needed
+                        if (mAirPlayAuth == null) {
+                            mAirPlayAuth = new AirPlayAuth(getServiceDescription(), STORED_AUTH_TOKEN);
+                        }
+                        try {
+                            mAirPlayAuth.authenticate();
+                            Util.postSuccess(serviceCommand.getResponseListener(), connection.getResponseString());
+                        } catch (Exception e) {
+                            Util.postError(serviceCommand.getResponseListener(), ServiceCommandError.getError(code));
+                        }
+
                     } else {
                         Util.postError(serviceCommand.getResponseListener(), ServiceCommandError.getError(code));
                     }
                 } catch (IOException e) {
-                    e.printStackTrace();
                     Util.postError(serviceCommand.getResponseListener(), new ServiceCommandError(0, e.getMessage(), null));
                 }
             }
@@ -587,12 +611,21 @@ public class AirPlayService extends DeviceService implements MediaPlayer, MediaC
     }
 
     @Override
-    public void sendPairingKey(String pairingKey) {
-        password = pairingKey;
+    public void sendPairingKey(final String pairingKey) {
 
-        if (pendingCommand != null)
-            pendingCommand.send();
-        pendingCommand = null;
+        if (mIsTVOS102Later) {
+            Util.runInBackground(new Runnable() {
+                @Override
+                public void run() {
+                    doPairing(pairingKey);
+                }
+            });
+        } else {
+            password = pairingKey;
+            if (pendingCommand != null)
+                pendingCommand.send();
+            pendingCommand = null;
+        }
     }
 
     String getAuthenticate(String method, String digestURI, String authStr) {
@@ -701,9 +734,11 @@ public class AirPlayService extends DeviceService implements MediaPlayer, MediaC
 
     @Override
     public void connect() {
-        mSessionId = UUID.randomUUID().toString();
+        if (TextUtils.isEmpty(mSessionId )) {
+            mSessionId = UUID.randomUUID().toString();
+        }
 
-        getPlaybackInfo(new ResponseListener<Object>() {
+        getServerInfo(new ResponseListener<Object>() {
             @Override
             public void onSuccess(Object object) {
                 connected = true;
@@ -712,13 +747,76 @@ public class AirPlayService extends DeviceService implements MediaPlayer, MediaC
 
             @Override
             public void onError(ServiceCommandError error) {
-                connected = true;
-                reportConnected(true);
-//                if (listener != null) {
-//                    listener.onConnectionFailure(AirPlayService.this, error);
-//                }
+                if (error.getCode() == HttpURLConnection.HTTP_INTERNAL_ERROR) {
+                    // in some case return 500 doesn't stands for a error
+                    // but I haven't met situations like that
+                    // according to this issue(https://github.com/ConnectSDK/Connect-SDK-Android-API-Sampler/issues/35)
+                    // make it a success
+                    connected = true;
+                    reportConnected(true);
+                } else if (error.getCode() == HttpURLConnection.HTTP_FORBIDDEN) {
+                    // need pairing
+                    // use stored auth token failed, so pairing is needed
+                    startPairing();
+                }
+                else {
+                    if (listener != null) {
+                        listener.onConnectionFailure(AirPlayService.this, error);
+                    }
+                }
             }
         });
+    }
+
+    private void startPairing() {
+        mIsTVOS102Later = true;
+        Util.runInBackground(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    mAirPlayAuth.startPairing();
+                    Util.runOnUI(new Runnable() {
+                        @Override
+                        public void run() {
+                            if (listener != null) {
+                                listener.onPairingRequired(AirPlayService.this, PairingType.PIN_CODE, null);
+                            }
+                        }
+                    });
+
+                } catch (Exception e) {
+                    handleAuthException(e);
+                }
+            }
+        });
+    }
+
+    private void doPairing(String pin) {
+        try {
+            mAirPlayAuth.doPairing(pin);
+            mAirPlayAuth.authenticateWithSocket();
+            connected = true;
+            reportConnected(true);
+        } catch (Exception e) {
+            handleAuthException(e);
+        }
+    }
+
+    private void handleAuthException(final Exception e) {
+        if (listener != null) {
+            Util.runOnUI(new Runnable() {
+                @Override
+                public void run() {
+                    ServiceCommandError se;
+                    if (e instanceof HttpException) {
+                        se = new ServiceCommandError(((HttpException) e).getCode(), ((HttpException) e).getResponseMessage());
+                    } else {
+                        se = new ServiceCommandError(0, null);
+                    }
+                    listener.onConnectionFailure(AirPlayService.this, se);
+                }
+            });
+        }
     }
 
     @Override

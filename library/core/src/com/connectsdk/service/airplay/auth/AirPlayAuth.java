@@ -1,25 +1,26 @@
-package eu.airaudio.airplay.auth;
+package com.connectsdk.service.airplay.auth;
 
+import com.connectsdk.service.airplay.auth.crypt.Curve25519;
+import com.connectsdk.service.airplay.auth.crypt.srp6.AppleSRP6ClientSessionImpl;
+import com.connectsdk.service.config.ServiceDescription;
 import com.dd.plist.NSData;
 import com.dd.plist.NSDictionary;
 import com.dd.plist.PropertyListParser;
 import com.nimbusds.srp6.BigIntegerUtils;
 import com.nimbusds.srp6.SRP6ClientSession;
 import com.nimbusds.srp6.SRP6CryptoParams;
-import eu.airaudio.airplay.auth.crypt.Curve25519;
-import eu.airaudio.airplay.auth.crypt.GCMParameterSpec;
-import eu.airaudio.airplay.auth.crypt.srp6.AppleSRP6ClientSessionImpl;
 import net.i2p.crypto.eddsa.EdDSAEngine;
 import net.i2p.crypto.eddsa.EdDSAPrivateKey;
 import net.i2p.crypto.eddsa.KeyPairGenerator;
 
 import javax.crypto.Cipher;
 import javax.crypto.NoSuchPaddingException;
+import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.net.SocketAddress;
+import java.net.Socket;
 import java.nio.charset.Charset;
 import java.security.*;
 import java.security.spec.InvalidKeySpecException;
@@ -32,20 +33,23 @@ import java.util.Random;
  * Created by Martin on 08.05.2017.
  */
 public class AirPlayAuth {
+    private static final int SOCKET_TIMEOUT = 120 * 1000;
 
-    private final InetSocketAddress address;
+    private final ServiceDescription serviceDescription;
     private final String clientId;
     private final EdDSAPrivateKey authKey;
+
+    private Socket mPairingSocket;
 
     /**
      * Create a new instance of AirPlayAuth, to be used to pair/authenticate with an AppleTV for AirPlay
      *
-     * @param address   The address of the AppleTV that you retrieve via mdns, eg. 192.168.1.142:7000
+     * @param description   The address of the AppleTV that you retrieve via mdns, eg. 192.168.1.142:7000
      * @param authToken An AuthToken which must be generated via {@code AirPlayAuth.generateNewAuthToken()}.
      */
-    public AirPlayAuth(InetSocketAddress address, String authToken) {
+    public AirPlayAuth(ServiceDescription description, String authToken) {
         try {
-            this.address = address;
+            this.serviceDescription = description;
 
             String[] authTokenSplit = authToken.split("@");
             this.clientId = authTokenSplit[0];
@@ -70,6 +74,26 @@ public class AirPlayAuth {
         return clientId + "@" + net.i2p.crypto.eddsa.Utils.bytesToHex(new KeyPairGenerator().generateKeyPair().getPrivate().getEncoded());
     }
 
+    private Socket connect() throws IOException {
+        if (mPairingSocket == null || mPairingSocket.isClosed()) {
+            mPairingSocket = new Socket();
+            mPairingSocket.setReuseAddress(true);
+            mPairingSocket.setSoTimeout(SOCKET_TIMEOUT);
+            mPairingSocket.connect(new InetSocketAddress(
+                    serviceDescription.getIpAddress(), serviceDescription.getPort()), SOCKET_TIMEOUT);
+        }
+
+        return mPairingSocket;
+    }
+
+    private void finishSocket(Socket c) {
+        try {
+            c.getInputStream().close();
+            c.getOutputStream().close();
+            c.close();
+        } catch (Exception ignore) {}
+    }
+
     /**
      * Step 1/3: If the client with this {@code authToken} has never paired in the past,
      * or if {@code AirPlayAuth.authenticate()} fails, call this method to initiate the pairing-process.
@@ -79,12 +103,12 @@ public class AirPlayAuth {
      * @throws IOException IOException
      */
     public void startPairing() throws IOException {
-        SocketAddress socket = getaddress();
+        Socket socket = connect();
         AuthUtils.postData(socket, "/pair-pin-start", null, null);
     }
 
-    public SocketAddress getaddress() throws IOException {
-        return address;
+    public ServiceDescription getServiceDescription() throws IOException {
+        return serviceDescription;
     }
 
     /**
@@ -95,8 +119,7 @@ public class AirPlayAuth {
      */
     public void doPairing(String pin) throws Exception {
 
-        SocketAddress socket = getaddress();
-
+        Socket socket = connect();
         PairSetupPin1Response pairSetupPin1Response = doPairSetupPin1(socket);
 
         final SRP6ClientSession srp6ClientSession = new AppleSRP6ClientSessionImpl();
@@ -108,8 +131,23 @@ public class AirPlayAuth {
         srp6ClientSession.step3(BigIntegerUtils.bigIntegerFromBytes(pairSetupPin2Response.PROOF));
 
         PairSetupPin3Response pairSetupPin3Response = doPairSetupPin3(socket, srp6ClientSession.getSessionKeyHash());
-
     }
+
+    public void authenticateWithSocket() throws Exception {
+        Socket socket = connect();
+
+        byte[] randomPrivateKey = new byte[32];
+        new Random().nextBytes(randomPrivateKey);
+        byte[] randomPublicKey = new byte[32];
+        Curve25519.keygen(randomPublicKey, null, randomPrivateKey);
+
+        byte[] pairVerify1Response = doPairVerify1WithSocket(socket, randomPublicKey);
+        doPairVerify2WithSocket(socket, pairVerify1Response, randomPrivateKey, randomPublicKey);
+
+        finishSocket(socket);
+        mPairingSocket = null;
+    }
+
 
     /**
      * Step 3/3 and later: This method returns an authenticated connection. Use {@code startPairing()} and {@code doPairing(String)}
@@ -118,27 +156,24 @@ public class AirPlayAuth {
      * @return An authenticated connection which can be used to send commands to the AppleTV
      * @throws Exception If there way any exception, eg. if the client hasn't been paired before.
      */
-    public SocketAddress authenticate() throws Exception {
-        SocketAddress socket = getaddress();
+    public void authenticate() throws Exception {
 
         byte[] randomPrivateKey = new byte[32];
         new Random().nextBytes(randomPrivateKey);
         byte[] randomPublicKey = new byte[32];
         Curve25519.keygen(randomPublicKey, null, randomPrivateKey);
 
-        byte[] pairVerify1Response = doPairVerify1(socket, randomPublicKey);
-        doPairVerify2(socket, pairVerify1Response, randomPrivateKey, randomPublicKey);
-        System.out.println("Pair Verify finished!");
-        return socket;
+        byte[] pairVerify1Response = doPairVerify1(serviceDescription, randomPublicKey);
+        doPairVerify2(serviceDescription, pairVerify1Response, randomPrivateKey, randomPublicKey);
     }
 
-    private PairSetupPin1Response doPairSetupPin1(SocketAddress socket) throws Exception {
+    private PairSetupPin1Response doPairSetupPin1(Socket description) throws Exception {
         byte[] pairSetupPinRequestData = AuthUtils.createPList(new HashMap<String, String>() {{
             put("method", "pin");
             put("user", clientId);
         }});
 
-        byte[] pairSetupPin1ResponseBytes = AuthUtils.postData(socket, "/pair-setup-pin", "application/x-apple-binary-plist", pairSetupPinRequestData);
+        byte[] pairSetupPin1ResponseBytes = AuthUtils.postData(description, "/pair-setup-pin", "application/x-apple-binary-plist", pairSetupPinRequestData);
 
         NSDictionary pairSetupPin1Response = (NSDictionary) PropertyListParser.parse(pairSetupPin1ResponseBytes);
         if (pairSetupPin1Response.containsKey("pk") && pairSetupPin1Response.containsKey("salt")) {
@@ -149,13 +184,13 @@ public class AirPlayAuth {
         throw new Exception();
     }
 
-    private PairSetupPin2Response doPairSetupPin2(SocketAddress socket, final byte[] publicClientValueA, final byte[] clientEvidenceMessageM1) throws Exception {
+    private PairSetupPin2Response doPairSetupPin2(Socket description, final byte[] publicClientValueA, final byte[] clientEvidenceMessageM1) throws Exception {
         byte[] pairSetupPinRequestData = AuthUtils.createPList(new HashMap<String, byte[]>() {{
             put("pk", publicClientValueA);
             put("proof", clientEvidenceMessageM1);
         }});
 
-        byte[] pairSetupPin2ResponseBytes = AuthUtils.postData(socket, "/pair-setup-pin", "application/x-apple-binary-plist", pairSetupPinRequestData);
+        byte[] pairSetupPin2ResponseBytes = AuthUtils.postData(description, "/pair-setup-pin", "application/x-apple-binary-plist", pairSetupPinRequestData);
 
         NSDictionary pairSetupPin2Response = (NSDictionary) PropertyListParser.parse(pairSetupPin2ResponseBytes);
         if (pairSetupPin2Response.containsKey("proof")) {
@@ -165,7 +200,7 @@ public class AirPlayAuth {
         throw new Exception();
     }
 
-    private PairSetupPin3Response doPairSetupPin3(SocketAddress socket, final byte[] sessionKeyHashK) throws Exception {
+    private PairSetupPin3Response doPairSetupPin3(Socket description, final byte[] sessionKeyHashK) throws Exception {
 
         MessageDigest sha512Digest = MessageDigest.getInstance("SHA-512");
         sha512Digest.update("Pair-Setup-AES-Key".getBytes(Charset.forName("UTF-8")));
@@ -184,7 +219,7 @@ public class AirPlayAuth {
 
         Cipher aesGcm128Encrypt = Cipher.getInstance("AES/GCM/NoPadding");
         SecretKeySpec secretKey = new SecretKeySpec(aesKey, "AES");
-        aesGcm128Encrypt.init(Cipher.ENCRYPT_MODE, secretKey, new GCMParameterSpec(128, aesIV));
+        aesGcm128Encrypt.init(Cipher.ENCRYPT_MODE, secretKey, new GCMParameterSpec(128, aesIV)); // :TODO API 19
         final byte[] aesGcm128ClientLTPK = aesGcm128Encrypt.doFinal(authKey.getAbyte());
 
         byte[] pairSetupPinRequestData = AuthUtils.createPList(new HashMap<String, byte[]>() {{
@@ -192,7 +227,7 @@ public class AirPlayAuth {
             put("authTag", Arrays.copyOfRange(aesGcm128ClientLTPK, aesGcm128ClientLTPK.length - 16, aesGcm128ClientLTPK.length));
         }});
 
-        byte[] pairSetupPin3ResponseBytes = AuthUtils.postData(socket, "/pair-setup-pin", "application/x-apple-binary-plist", pairSetupPinRequestData);
+        byte[] pairSetupPin3ResponseBytes = AuthUtils.postData(description, "/pair-setup-pin", "application/x-apple-binary-plist", pairSetupPinRequestData);
 
         NSDictionary pairSetupPin3Response = (NSDictionary) PropertyListParser.parse(pairSetupPin3ResponseBytes);
 
@@ -205,11 +240,42 @@ public class AirPlayAuth {
         throw new Exception();
     }
 
-    private byte[] doPairVerify1(SocketAddress socket, byte[] randomPublicKey) throws Exception {
+    private byte[] doPairVerify1(ServiceDescription description, byte[] randomPublicKey) throws Exception {
+        return AuthUtils.postData(description, "/pair-verify", "application/octet-stream", AuthUtils.concatByteArrays(new byte[]{1, 0, 0, 0}, randomPublicKey, authKey.getAbyte()));
+    }
+
+    private void doPairVerify2(ServiceDescription description, byte[] pairVerify1Response, byte[] randomPrivateKey, byte[] randomPublicKey) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IOException, InvalidAlgorithmParameterException, SignatureException {
+        byte[] atvPublicKey = Arrays.copyOfRange(pairVerify1Response, 0, 32);
+        byte[] sharedSecret = new byte[32];
+        Curve25519.curve(sharedSecret, randomPrivateKey, atvPublicKey);
+
+        MessageDigest sha512Digest = MessageDigest.getInstance("SHA-512");
+        sha512Digest.update("Pair-Verify-AES-Key".getBytes(Charset.forName("UTF-8")));
+        sha512Digest.update(sharedSecret);
+        byte[] sharedSecretSha512AesKey = Arrays.copyOfRange(sha512Digest.digest(), 0, 16);
+
+        sha512Digest.update("Pair-Verify-AES-IV".getBytes(Charset.forName("UTF-8")));
+        sha512Digest.update(sharedSecret);
+        byte[] sharedSecretSha512AesIV = Arrays.copyOfRange(sha512Digest.digest(), 0, 16);
+
+        Cipher aesCtr128Encrypt = Cipher.getInstance("AES/CTR/NoPadding");
+        aesCtr128Encrypt.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(sharedSecretSha512AesKey, "AES"), new IvParameterSpec(sharedSecretSha512AesIV));
+
+        aesCtr128Encrypt.update(Arrays.copyOfRange(pairVerify1Response, 32, pairVerify1Response.length));
+
+        EdDSAEngine edDSAEngine = new EdDSAEngine();
+        edDSAEngine.initSign(authKey);
+
+        byte[] signature = aesCtr128Encrypt.update(edDSAEngine.signOneShot(AuthUtils.concatByteArrays(randomPublicKey, atvPublicKey)));
+
+        AuthUtils.postData(description, "/pair-verify", "application/octet-stream", AuthUtils.concatByteArrays(new byte[]{0, 0, 0, 0}, signature));
+    }
+
+    private byte[] doPairVerify1WithSocket(Socket socket, byte[] randomPublicKey) throws Exception {
         return AuthUtils.postData(socket, "/pair-verify", "application/octet-stream", AuthUtils.concatByteArrays(new byte[]{1, 0, 0, 0}, randomPublicKey, authKey.getAbyte()));
     }
 
-    private void doPairVerify2(SocketAddress socket, byte[] pairVerify1Response, byte[] randomPrivateKey, byte[] randomPublicKey) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IOException, InvalidAlgorithmParameterException, SignatureException {
+    private void doPairVerify2WithSocket(Socket socket, byte[] pairVerify1Response, byte[] randomPrivateKey, byte[] randomPublicKey) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IOException, InvalidAlgorithmParameterException, SignatureException {
         byte[] atvPublicKey = Arrays.copyOfRange(pairVerify1Response, 0, 32);
         byte[] sharedSecret = new byte[32];
         Curve25519.curve(sharedSecret, randomPrivateKey, atvPublicKey);

@@ -20,6 +20,8 @@
 
 package com.connectsdk.service.command;
 
+import java.io.IOException;
+
 /**
  * This class implements base service error which is based on HTTP response codes
  */
@@ -75,6 +77,9 @@ public class ServiceCommandError extends Error {
         }
         else if (code == 503) {
             desc = "Service Unavailable";
+        }
+        else if (code == 403) {
+            desc = "Forbidden";
         }
         else {
             desc = "Unknown Error";

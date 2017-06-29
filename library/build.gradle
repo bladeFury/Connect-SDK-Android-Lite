@@ -84,6 +84,10 @@ dependencies {
     compile files('core/libs/javax.jmdns_3.4.1-patch2.jar')
     compile 'com.android.support:support-annotations:24.2.0'
 
+    compile 'com.googlecode.plist:dd-plist:1.19'
+    compile 'com.nimbusds:srp6a:2.0.2'
+    compile 'net.i2p.crypto:eddsa:0.2.0'
+
     testCompile 'org.apache.maven:maven-ant-tasks:2.1.3'
     testCompile 'junit:junit:4.12'
     testCompile 'org.robolectric:robolectric:2.4'

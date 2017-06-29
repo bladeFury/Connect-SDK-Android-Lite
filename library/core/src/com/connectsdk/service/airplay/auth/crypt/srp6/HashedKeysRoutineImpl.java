@@ -1,4 +1,4 @@
-package eu.airaudio.airplay.auth.crypt.srp6;
+package com.connectsdk.service.airplay.auth.crypt.srp6;
 
 import com.nimbusds.srp6.BigIntegerUtils;
 import com.nimbusds.srp6.SRP6CryptoParams;

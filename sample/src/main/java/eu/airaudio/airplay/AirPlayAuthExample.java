@@ -1,7 +1,10 @@
 package eu.airaudio.airplay;
 
-import eu.airaudio.airplay.auth.AirPlayAuth;
-import eu.airaudio.airplay.auth.AuthUtils;
+
+import android.util.Log;
+
+import com.connectsdk.service.airplay.auth.AirPlayAuth;
+import com.connectsdk.service.airplay.auth.AuthUtils;
 
 import java.net.InetSocketAddress;
 import java.net.Socket;
@@ -20,30 +23,32 @@ public class AirPlayAuthExample {
     public static final int PORT = 7000;
 
     public static void main(boolean pair) throws Exception {
-        AirPlayAuth airPlayAuth = new AirPlayAuth(new InetSocketAddress(IP, PORT), STORED_AUTH_TOKEN);
-        SocketAddress socket = airPlayAuth.getaddress();
-        if (pair) {
-            try {
-                socket = airPlayAuth.authenticate();
-            } catch (Exception e) {
-                System.out.println("Authentication failed - start pairing..");
-
-                airPlayAuth.startPairing();
-
-                System.out.println("Enter PIN:");
-                String pin = "";
-
-                airPlayAuth.doPairing(pin);
-
-                socket = airPlayAuth.authenticate();
-            }
-        }
-
-
-        String content = "Content-Location: http://111.202.98.149/vmind.qqvideo.tc.qq.com/p0200vq0ihv.p202.1.mp4?vkey=643BC7DF3C406143CA7A68C346C9D4FA1FE4B5E5EE9C2139AFAC03FDC90D9EE02094999DCB9348F322FDC75D4A70D52B40F2BC095CBB50603FCB3E3169D709A2C91BE6B1ACF051124692C6B833B6F62404D2F72F961EF865&platform=&sdtfrom=&fmt=hd&level=0\r\n" +
-                "Start-Position: 0.000000\r\n";
-
-        AuthUtils.postData(socket, "/play", "text/parameters", content.getBytes("UTF-8"));
+        String token = AirPlayAuth.generateNewAuthToken();
+        Log.v("zhangge", token);
+//        AirPlayAuth airPlayAuth = new AirPlayAuth(new InetSocketAddress(IP, PORT), STORED_AUTH_TOKEN);
+//        SocketAddress socket = airPlayAuth.getaddress();
+//        if (pair) {
+//            try {
+//                socket = airPlayAuth.authenticate();
+//            } catch (Exception e) {
+//                System.out.println("Authentication failed - start pairing..");
+//
+//                airPlayAuth.startPairing();
+//
+//                System.out.println("Enter PIN:");
+//                String pin = "";
+//
+//                airPlayAuth.doPairing(pin);
+//
+//                socket = airPlayAuth.authenticate();
+//            }
+//        }
+//
+//
+//        String content = "Content-Location: http://111.202.98.149/vmind.qqvideo.tc.qq.com/p0200vq0ihv.p202.1.mp4?vkey=643BC7DF3C406143CA7A68C346C9D4FA1FE4B5E5EE9C2139AFAC03FDC90D9EE02094999DCB9348F322FDC75D4A70D52B40F2BC095CBB50603FCB3E3169D709A2C91BE6B1ACF051124692C6B833B6F62404D2F72F961EF865&platform=&sdtfrom=&fmt=hd&level=0\r\n" +
+//                "Start-Position: 0.000000\r\n";
+//
+//        AuthUtils.postData(socket, "/play", "text/parameters", content.getBytes("UTF-8"));
 
     }
 }

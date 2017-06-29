@@ -1,4 +1,4 @@
-package eu.airaudio.airplay.auth.crypt;
+package com.connectsdk.service.airplay.auth.crypt;
 
 import java.security.spec.AlgorithmParameterSpec;
 

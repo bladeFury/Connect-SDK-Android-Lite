@@ -1,9 +1,9 @@
-package eu.airaudio.airplay.auth.crypt.srp6;
+package com.connectsdk.service.airplay.auth.crypt.srp6;
 
 import com.nimbusds.srp6.*;
 
 import java.math.BigInteger;
-import java.nio.charset.StandardCharsets;
+import java.nio.charset.Charset;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
@@ -38,7 +38,7 @@ class ClientEvidenceRoutineImpl implements ClientEvidenceRoutine {
 
         byte[] hNhg = xor(hN, hg);
 
-        digest.update(ctx.userID.getBytes(StandardCharsets.UTF_8));
+        digest.update(ctx.userID.getBytes(Charset.forName("UTF-8")));
         byte[] hu = digest.digest();
 
         digest.update(hNhg);

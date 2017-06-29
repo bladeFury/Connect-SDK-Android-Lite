@@ -1,11 +1,14 @@
 package com.connectsdk.sample;
 
 import android.app.AlertDialog;
+import android.content.DialogInterface;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.text.InputType;
 import android.util.Log;
 import android.view.View;
 import android.widget.AdapterView;
+import android.widget.EditText;
 import android.widget.Toast;
 
 import com.connectsdk.core.MediaInfo;
@@ -31,6 +34,7 @@ public class MainActivity extends AppCompatActivity {
         DiscoveryManager.init(this);
         setContentView(R.layout.activity_main);
         DiscoveryManager.getInstance().start();
+
         findViewById(R.id.discover).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -55,8 +59,28 @@ public class MainActivity extends AppCompatActivity {
                             }
 
                             @Override
-                            public void onPairingRequired(ConnectableDevice device, DeviceService service, DeviceService.PairingType pairingType) {
+                            public void onPairingRequired(final ConnectableDevice device, DeviceService service, DeviceService.PairingType pairingType) {
+                                // get pairing key
+                                AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+                                builder.setTitle("Title");
 
+                                final EditText input = new EditText(MainActivity.this);
+                                input.setInputType(InputType.TYPE_CLASS_TEXT);
+                                builder.setView(input);
+                                builder.setPositiveButton("OK", new DialogInterface.OnClickListener() {
+                                    @Override
+                                    public void onClick(DialogInterface dialog, int which) {
+                                        device.sendPairingKey(input.getText().toString());
+                                    }
+                                });
+                                builder.setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
+                                    @Override
+                                    public void onClick(DialogInterface dialog, int which) {
+                                        dialog.cancel();
+                                    }
+                                });
+
+                                builder.show();
                             }
 
                             @Override
