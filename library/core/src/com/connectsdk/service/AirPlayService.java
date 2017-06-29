@@ -68,7 +68,7 @@ import java.util.TimerTask;
 import java.util.UUID;
 
 public class AirPlayService extends DeviceService implements MediaPlayer, MediaControl {
-    private static final String STORED_AUTH_TOKEN = "L8XQ63AZV229NNN1@302e020100300506032b657004220420fd9f6c3fc6179be9817e9476334c2cc406f92bf494d10b6f2cf69cbb17fcc6cd";
+    private static final String STORED_AUTH_TOKEN = "ZLWW4WQ2DYCDQLYU@302e020100300506032b65700422042075cd275fcc4f2c35e5396a660d1d7a36ad99513e2df2c050a47ec7010bf67c3f";
     public static final String X_APPLE_SESSION_ID = "X-Apple-Session-ID";
     public static final String ID = "AirPlay";
     private static final long KEEP_ALIVE_PERIOD = 15000;

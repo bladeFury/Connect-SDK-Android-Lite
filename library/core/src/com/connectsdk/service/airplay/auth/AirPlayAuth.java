@@ -218,7 +218,7 @@ public class AirPlayAuth {
 
         Cipher aesGcm128Encrypt = Cipher.getInstance("AES/GCM/NoPadding");
         SecretKeySpec secretKey = new SecretKeySpec(aesKey, "AES");
-        aesGcm128Encrypt.init(Cipher.ENCRYPT_MODE, secretKey, new GCMParameterSpec(128, aesIV)); // :TODO API 19
+        aesGcm128Encrypt.init(Cipher.ENCRYPT_MODE, secretKey, new IvParameterSpec(aesIV)); // :TODO API 19
         final byte[] aesGcm128ClientLTPK = aesGcm128Encrypt.doFinal(authKey.getAbyte());
 
         byte[] pairSetupPinRequestData = AuthUtils.createPList(new HashMap<String, byte[]>() {{
