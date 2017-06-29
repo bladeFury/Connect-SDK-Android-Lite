@@ -274,6 +274,9 @@ public class AirPlayService extends DeviceService implements MediaPlayer, MediaC
 
             @Override
             public void onSuccess(Object response) {
+                if (response == null) {
+                    return;
+                }
                 String strResponse = (String) response;
 
                 long duration = 0;
