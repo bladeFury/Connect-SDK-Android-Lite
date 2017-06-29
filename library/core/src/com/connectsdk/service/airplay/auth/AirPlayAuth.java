@@ -103,8 +103,8 @@ public class AirPlayAuth {
      * @throws IOException IOException
      */
     public void startPairing() throws IOException {
-        Socket socket = connect();
-        AuthUtils.postData(socket, "/pair-pin-start", null, null);
+//        Socket socket = connect();
+        AuthUtils.postData(serviceDescription, "/pair-pin-start", null, null);
     }
 
     public ServiceDescription getServiceDescription() throws IOException {
@@ -119,18 +119,17 @@ public class AirPlayAuth {
      */
     public void doPairing(String pin) throws Exception {
 
-        Socket socket = connect();
-        PairSetupPin1Response pairSetupPin1Response = doPairSetupPin1(socket);
+        PairSetupPin1Response pairSetupPin1Response = doPairSetupPin1(serviceDescription);
 
         final SRP6ClientSession srp6ClientSession = new AppleSRP6ClientSessionImpl();
         srp6ClientSession.step1(clientId, pin);
         srp6ClientSession.step2(SRP6CryptoParams.getInstance(2048, "SHA-1"), BigIntegerUtils.bigIntegerFromBytes(pairSetupPin1Response.SALT), BigIntegerUtils.bigIntegerFromBytes(pairSetupPin1Response.PK));
 
-        PairSetupPin2Response pairSetupPin2Response = doPairSetupPin2(socket, BigIntegerUtils.bigIntegerToBytes(srp6ClientSession.getPublicClientValue()), BigIntegerUtils.bigIntegerToBytes(srp6ClientSession.getClientEvidenceMessage()));
+        PairSetupPin2Response pairSetupPin2Response = doPairSetupPin2(serviceDescription, BigIntegerUtils.bigIntegerToBytes(srp6ClientSession.getPublicClientValue()), BigIntegerUtils.bigIntegerToBytes(srp6ClientSession.getClientEvidenceMessage()));
 
         srp6ClientSession.step3(BigIntegerUtils.bigIntegerFromBytes(pairSetupPin2Response.PROOF));
 
-        PairSetupPin3Response pairSetupPin3Response = doPairSetupPin3(socket, srp6ClientSession.getSessionKeyHash());
+        PairSetupPin3Response pairSetupPin3Response = doPairSetupPin3(serviceDescription, srp6ClientSession.getSessionKeyHash());
     }
 
     public void authenticateWithSocket() throws Exception {
@@ -167,7 +166,7 @@ public class AirPlayAuth {
         doPairVerify2(serviceDescription, pairVerify1Response, randomPrivateKey, randomPublicKey);
     }
 
-    private PairSetupPin1Response doPairSetupPin1(Socket description) throws Exception {
+    private PairSetupPin1Response doPairSetupPin1(ServiceDescription description) throws Exception {
         byte[] pairSetupPinRequestData = AuthUtils.createPList(new HashMap<String, String>() {{
             put("method", "pin");
             put("user", clientId);
@@ -184,7 +183,7 @@ public class AirPlayAuth {
         throw new Exception();
     }
 
-    private PairSetupPin2Response doPairSetupPin2(Socket description, final byte[] publicClientValueA, final byte[] clientEvidenceMessageM1) throws Exception {
+    private PairSetupPin2Response doPairSetupPin2(ServiceDescription description, final byte[] publicClientValueA, final byte[] clientEvidenceMessageM1) throws Exception {
         byte[] pairSetupPinRequestData = AuthUtils.createPList(new HashMap<String, byte[]>() {{
             put("pk", publicClientValueA);
             put("proof", clientEvidenceMessageM1);
@@ -200,7 +199,7 @@ public class AirPlayAuth {
         throw new Exception();
     }
 
-    private PairSetupPin3Response doPairSetupPin3(Socket description, final byte[] sessionKeyHashK) throws Exception {
+    private PairSetupPin3Response doPairSetupPin3(ServiceDescription description, final byte[] sessionKeyHashK) throws Exception {
 
         MessageDigest sha512Digest = MessageDigest.getInstance("SHA-512");
         sha512Digest.update("Pair-Setup-AES-Key".getBytes(Charset.forName("UTF-8")));

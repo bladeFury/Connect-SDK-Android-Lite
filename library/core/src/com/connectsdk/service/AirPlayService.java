@@ -68,7 +68,7 @@ import java.util.TimerTask;
 import java.util.UUID;
 
 public class AirPlayService extends DeviceService implements MediaPlayer, MediaControl {
-    private static final String STORED_AUTH_TOKEN = "EYJJ0ROBJJAWA95G@302e020100300506032b657004220420376bf9475355580b654f31ca1a35d437a1a08c6f1aefee0e53631266749ae5e6";
+    private static final String STORED_AUTH_TOKEN = "L8XQ63AZV229NNN1@302e020100300506032b657004220420fd9f6c3fc6179be9817e9476334c2cc406f92bf494d10b6f2cf69cbb17fcc6cd";
     public static final String X_APPLE_SESSION_ID = "X-Apple-Session-ID";
     public static final String ID = "AirPlay";
     private static final long KEEP_ALIVE_PERIOD = 15000;
@@ -794,7 +794,7 @@ public class AirPlayService extends DeviceService implements MediaPlayer, MediaC
     private void doPairing(String pin) {
         try {
             mAirPlayAuth.doPairing(pin);
-            mAirPlayAuth.authenticateWithSocket();
+            mAirPlayAuth.authenticate();
             connected = true;
             reportConnected(true);
         } catch (Exception e) {
